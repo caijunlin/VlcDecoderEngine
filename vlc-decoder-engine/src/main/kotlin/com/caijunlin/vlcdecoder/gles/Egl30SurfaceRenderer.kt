@@ -22,7 +22,7 @@ import javax.microedition.khronos.egl.*
 class Egl30SurfaceRenderer(private val surface: Surface) : IRenderer {
 
     private val renderThread = HandlerThread("Egl30RenderThread")
-    private lateinit var renderHandler: Handler
+    private var renderHandler: Handler
 
     // 真正双缓冲
     private var writeBuffer: ByteBuffer? = null
