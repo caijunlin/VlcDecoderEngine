@@ -7,6 +7,7 @@ object VlcBridge {
         try {
             System.loadLibrary("c++_shared")
             System.loadLibrary("vlc")
+            System.loadLibrary("vlcjni")
             System.loadLibrary("vlc_bridge")
         } catch (e: Throwable) {
             e.printStackTrace()

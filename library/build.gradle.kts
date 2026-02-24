@@ -26,7 +26,7 @@ android {
     namespace = "com.caijunlin.vlcdecoder"
     version = versionName
     compileSdk {
-        version = release(36)
+        version = release(35)
     }
 
     defaultConfig {
@@ -38,9 +38,6 @@ android {
                 arguments += listOf("-DANDROID_STL=c++_static")
             }
         }
-        ndk {
-            abiFilters.add("arm64-v8a")
-        }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
     }
@@ -50,6 +47,7 @@ android {
             res.srcDirs("src/main/res")
             assets.srcDirs("src/main/assets")
             java.srcDirs("src/main/kotlin", "src/main/java")
+            jniLibs.srcDirs("src/main/cpp/libs")
         }
     }
 
