@@ -2,4 +2,4 @@ jdk:
   - openjdk21
 
 install:
-  - ./gradlew :vlc-decoder-engine:publishToMavenLocal
+  - ./gradlew :vlc-decoder:publishToMavenLocal
