@@ -3,6 +3,7 @@ import java.util.Date
 import java.util.TimeZone
 
 val versionName = "1.0.0"
+
 val jdkVersion = 21
 
 plugins {
