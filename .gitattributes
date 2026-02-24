@@ -1,0 +1,9 @@
+# 默认让 Git 自动处理换行符
+* text=auto
+
+# 强制规定这些文本文件使用 LF (Linux 换行符) - 极其重要！防止 JitPack 报错！
+gradlew text eol=lf
+*.sh text eol=lf
+
+# 强制规定 Windows 批处理文件使用 CRLF
+*.bat text eol=crlf
