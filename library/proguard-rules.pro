@@ -21,6 +21,9 @@
 
 # 保护对外的配置枚举
 -keep public enum com.caijunlin.vlcdecoder.core.RenderApi {
-    **[] $VALUES;
     public *;
 }
+
+# 保留 FrameHub 类本身以及它的所有成员（字段、方法）
+-keep class com.caijunlin.vlcdecoder.core.FrameHub { *; }
+-keep class com.caijunlin.vlcdecoder.core.FrameHub$** { *; }
