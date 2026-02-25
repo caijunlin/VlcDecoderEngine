@@ -48,11 +48,13 @@ object VlcStreamManager {
         ":input-repeat=65535", // 循环播放
     )
 
+    @JvmStatic
     fun startStream() {
         // 只需要调用一次初始化
         globalVlcHandle = VlcBridge.nativeCreateVLC(vlcArgs.toTypedArray())
     }
 
+    @JvmStatic
     @Synchronized
     fun bind(
         url: String, surface: Surface,
@@ -78,6 +80,7 @@ object VlcStreamManager {
         session.attachSurface(surface, renderApi)
     }
 
+    @JvmStatic
     @Synchronized
     fun unbind(url: String, surface: Surface) {
         val session = sessions[url] ?: return
@@ -94,6 +97,7 @@ object VlcStreamManager {
     }
 
     // App 退出时调用
+    @JvmStatic
     fun releaseAll() {
         startupHandler.removeCallbacksAndMessages(null) // 清空排队任务
         startupThread.quitSafely()
