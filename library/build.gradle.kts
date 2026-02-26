@@ -1,7 +1,3 @@
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.TimeZone
-
 val versionName = "1.0.0"
 
 val jdkVersion = 21
@@ -14,12 +10,6 @@ plugins {
 
 kotlin {
     jvmToolchain(jdkVersion)
-}
-
-fun getBuildTime(format: String): String {
-    val simpleDateFormat = SimpleDateFormat(format)
-    simpleDateFormat.timeZone = TimeZone.getTimeZone("GMT+08:00")
-    return simpleDateFormat.format(Date())
 }
 
 android {
@@ -89,9 +79,7 @@ android {
         outputs.all {
             val output = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
             if (output != null) {
-                val createTime = getBuildTime("yyyy-MM-dd_HH_mm_ss")
-                val appName = android.namespace
-                output.outputFileName = "${appName}_${versionName}_${createTime}.aar"
+                output.outputFileName = "${android.namespace}_${versionName}.aar"
             }
         }
     }
