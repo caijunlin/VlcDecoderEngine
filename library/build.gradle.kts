@@ -1,4 +1,4 @@
-val versionName = "1.0.0"
+val versionName = "1.0.2"
 
 val jdkVersion = 21
 
@@ -27,7 +27,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
