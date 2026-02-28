@@ -43,7 +43,7 @@ android {
 
     publishing {
         singleVariant("release") {
-            withSourcesJar()
+//            withSourcesJar()
         }
     }
 
@@ -71,8 +71,8 @@ dependencies {
 publishing {
     publications {
         create<MavenPublication>("release") {
-            groupId = android.namespace
-            artifactId = "library"
+            groupId = "com.github.caijunlin"
+            artifactId = "vlc-decoder"
             version = versionName
             afterEvaluate {
                 from(components["release"])
@@ -94,7 +94,15 @@ tasks.register("createRelease") {
             return@doLast
         }
         println("Release: $versionName ...")
-        ProcessBuilder("gh", "release", "create", versionName, "--title", versionName, "--generate-notes")
+        ProcessBuilder(
+            "gh",
+            "release",
+            "create",
+            versionName,
+            "--title",
+            versionName,
+            "--generate-notes"
+        )
             .inheritIO()
             .start()
             .waitFor()

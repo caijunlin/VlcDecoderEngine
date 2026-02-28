@@ -1,13 +1,11 @@
-# 允许更激进的优化
--optimizationpasses 5
--allowaccessmodification
--dontusemixedcaseclassnames
--dontwarn **
--verbose
+# 绝对保留 VlcStreamManager 的类名以及内部所有的公开/私有成员和方法
+-keep class com.caijunlin.vlcdecoder.core.VlcStreamManager { *; }
 
-# 同样需要引入 Keep 规则，防止自己把自己混淆坏了
--keeppackagenames com.caijunlin.**
+# 保留 LibVLC 核心库下的所有类结构和 JNI 方法映射
+-keep class org.videolan.libvlc.** { *; }
+-dontwarn org.videolan.libvlc.**
 
--keep public class com.caijunlin.vlcdecoder.**.VlcStreamManager {
-    public <methods>;
-}
+# 明确指示编译器不要对 Android 原生系统包及其子类进行混淆
+-keep class android.** { *; }
+-dontwarn android.**
+-dontwarn java.lang.invoke.StringConcatFactory
