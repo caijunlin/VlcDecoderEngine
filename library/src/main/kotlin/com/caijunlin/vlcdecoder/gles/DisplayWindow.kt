@@ -6,8 +6,8 @@ import android.view.Surface
 
 /**
  * @author caijunlin
- * @date   2026/2/28
- * @description   显示窗口数据模型封装了外部传入的物理画布以及在其上创建的 EGL 渲染表面
+ * @date   2026/3/2
+ * @description   显示窗口数据模型彻底剥离业务状态仅作为封装物理画布和矩阵参数的纯粹容器
  */
 class DisplayWindow(val x5Surface: Surface) {
 
@@ -29,7 +29,6 @@ class DisplayWindow(val x5Surface: Surface) {
      * @param eglCore 底层图形渲染引擎核心实例
      */
     fun initEGLSurface(eglCore: EglCore) {
-        // 确保不会对同一个窗口重复创建表面句柄
         if (eglSurface == EGL14.EGL_NO_SURFACE) {
             eglSurface = eglCore.createWindowSurface(x5Surface)
         }
@@ -40,11 +39,9 @@ class DisplayWindow(val x5Surface: Surface) {
      * @param eglCore 底层图形渲染引擎核心实例
      */
     fun release(eglCore: EglCore) {
-        // 校验表面状态并在底层引擎中执行销毁动作
         if (eglSurface != EGL14.EGL_NO_SURFACE) {
             eglCore.destroySurface(eglSurface)
             eglSurface = EGL14.EGL_NO_SURFACE
         }
     }
-
 }

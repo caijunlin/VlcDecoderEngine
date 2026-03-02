@@ -10,6 +10,7 @@ import android.opengl.GLES11Ext
 import android.opengl.GLES30
 import android.opengl.Matrix
 import android.view.Surface
+import androidx.core.graphics.createBitmap
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -365,7 +366,7 @@ class EglCore {
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
 
         buffer.rewind()
-        val rawBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val rawBitmap = createBitmap(width, height)
         rawBitmap.copyPixelsFromBuffer(buffer)
 
         // 显存原点在左下角而安卓原点在左上角故需在此处将图片做垂直翻转映射处理
