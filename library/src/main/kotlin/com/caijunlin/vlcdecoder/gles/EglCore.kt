@@ -5,12 +5,14 @@ import android.opengl.EGL14
 import android.opengl.EGLConfig
 import android.opengl.EGLContext
 import android.opengl.EGLDisplay
+import android.opengl.EGLExt
 import android.opengl.EGLSurface
 import android.opengl.GLES11Ext
 import android.opengl.GLES30
 import android.opengl.Matrix
+import android.os.Handler
+import android.os.Looper
 import android.view.Surface
-import androidx.core.graphics.createBitmap
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -353,31 +355,6 @@ class EglCore {
     }
 
     /**
-     * 将指定帧缓冲区内的像素数据抽取到系统内存并翻转为标准格式的安卓位图对象
-     * @param fboId 目标帧缓冲对象的硬件标识符
-     * @param width 截取画面的像素宽度
-     * @param height 截取画面的像素高度
-     * @return 包含抽取画面内容的位图对象如果抽取异常则返回空值
-     */
-    fun readPixelsFromFBO(fboId: Int, width: Int, height: Int): Bitmap {
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fboId)
-        val buffer = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder())
-        GLES30.glReadPixels(0, 0, width, height, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buffer)
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
-
-        buffer.rewind()
-        val rawBitmap = createBitmap(width, height)
-        rawBitmap.copyPixelsFromBuffer(buffer)
-
-        // 显存原点在左下角而安卓原点在左上角故需在此处将图片做垂直翻转映射处理
-        val flipMatrix = android.graphics.Matrix().apply { postScale(1f, -1f) }
-        val finalBitmap = Bitmap.createBitmap(rawBitmap, 0, 0, width, height, flipMatrix, true)
-
-        rawBitmap.recycle()
-        return finalBitmap
-    }
-
-    /**
      * 向显卡管线的各个通道提交激活所需的顶点坐标值与材质纹理映射坐标数据
      */
     private fun bindVertexData() {
@@ -462,6 +439,95 @@ class EglCore {
         return GLES30.glCreateProgram().also {
             GLES30.glAttachShader(it, v); GLES30.glAttachShader(it, f); GLES30.glLinkProgram(it)
         }
+    }
+
+    /**
+     * 将当前绑定的 EGL 渲染表面清空为全透明状态，用于透出底层 HTML 或原生背景
+     */
+    fun clearCurrentSurface() {
+        GLES30.glClearColor(0.0f, 0.0f, 0.0f, 0.0f)
+        GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+    }
+
+    /**
+     * 向系统屏幕合成器 (SurfaceFlinger) 提交画面的真实硬件时间戳 (PTS)。
+     * 它可以彻底消除 30fps 视频在 60Hz 屏幕上由于帧停留不均导致的持续性规律跳帧 (Judder)！
+     */
+    fun setPresentationTime(eglSurface: EGLSurface, nst: Long) {
+        EGLExt.eglPresentationTimeANDROID(eglDisplay, eglSurface, nst)
+    }
+
+    /**
+     * 利用 PBO (Pixel Buffer Object) 实现完全异步的零阻塞截帧。
+     * 发送读取指令后 CPU 瞬间返回，由 GPU 后台通过 DMA 搬运数据，彻底消灭截图造成的卡顿。
+     */
+    fun readPixelsFromFBOAsync(
+        fboId: Int,
+        width: Int,
+        height: Int,
+        renderHandler: Handler,
+        callback: (Bitmap?) -> Unit
+    ) {
+        val pbo = IntArray(1)
+        GLES30.glGenBuffers(1, pbo, 0)
+
+        // 绑定 PBO 通道并申请对应的显存空间
+        GLES30.glBindBuffer(GLES30.GL_PIXEL_PACK_BUFFER, pbo[0])
+        GLES30.glBufferData(
+            GLES30.GL_PIXEL_PACK_BUFFER,
+            width * height * 4,
+            null,
+            GLES30.GL_STREAM_READ
+        )
+
+        // 将 FBO 画面“异步”抽入 PBO，这个方法现在会瞬间执行完毕，不会阻塞线程！
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fboId)
+        GLES30.glReadPixels(0, 0, width, height, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, 0)
+
+        // 解除挂载，让 GPU 在后台慢慢搬运
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+        GLES30.glBindBuffer(GLES30.GL_PIXEL_PACK_BUFFER, 0)
+
+        // 延迟 5ms（大约等待 GPU 渲染完两帧的时间）后再去收割数据
+        renderHandler.postDelayed({
+            try {
+                // 必须重新切回主环境，因为此时上下文本可能被其他任务占用
+                makeCurrentMain()
+                GLES30.glBindBuffer(GLES30.GL_PIXEL_PACK_BUFFER, pbo[0])
+
+                // 将 GPU 搬运好的内存映射给 CPU
+                val buffer = GLES30.glMapBufferRange(
+                    GLES30.GL_PIXEL_PACK_BUFFER,
+                    0,
+                    width * height * 4,
+                    GLES30.GL_MAP_READ_BIT
+                )
+
+                if (buffer != null) {
+                    val rawBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                    (buffer as ByteBuffer).order(ByteOrder.nativeOrder())
+                    rawBitmap.copyPixelsFromBuffer(buffer)
+                    GLES30.glUnmapBuffer(GLES30.GL_PIXEL_PACK_BUFFER)
+
+                    // 翻转并生成最终位图
+                    val flipMatrix = android.graphics.Matrix().apply { postScale(1f, -1f) }
+                    val finalBitmap =
+                        Bitmap.createBitmap(rawBitmap, 0, 0, width, height, flipMatrix, true)
+                    rawBitmap.recycle()
+
+                    // 切回主线程 UI 回调
+                    Handler(Looper.getMainLooper()).post { callback(finalBitmap) }
+                } else {
+                    Handler(Looper.getMainLooper()).post { callback(null) }
+                }
+            } catch (_: Exception) {
+                Handler(Looper.getMainLooper()).post { callback(null) }
+            } finally {
+                // 彻底销毁 PBO 清理显存
+                GLES30.glBindBuffer(GLES30.GL_PIXEL_PACK_BUFFER, 0)
+                GLES30.glDeleteBuffers(1, pbo, 0)
+            }
+        }, 5L) // 延迟 5 毫秒收割
     }
 
     /**

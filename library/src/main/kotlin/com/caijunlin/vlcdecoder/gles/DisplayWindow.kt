@@ -15,6 +15,9 @@ class DisplayWindow(val x5Surface: Surface) {
     var eglSurface: EGLSurface = EGL14.EGL_NO_SURFACE
         private set
 
+    // 标记当前窗口是否需要重绘（尺寸改变，或者刚绑定时）
+    @Volatile var isDirty = true
+
     // 外部画布当前的物理像素宽度
     var physicalW: Int = 0
 

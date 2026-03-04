@@ -26,7 +26,7 @@ class DecoderStream(
     private val eglCore: EglCore,
     private val libVLC: LibVLC?,
     private val renderHandler: Handler,
-    private val mediaOptions: ArrayList<String>?,
+    private val mediaOptions: ArrayList<String>,
     private val onStreamDead: (String) -> Unit
 ) : SurfaceTexture.OnFrameAvailableListener {
 
@@ -59,14 +59,21 @@ class DecoderStream(
     @Volatile
     var frameAvailable = false
 
+    // 用于保存当前解码帧的真实硬件时间戳（PTS），单位为纳秒
+    @Volatile
+    var lastPts: Long = 0L
+
     // 标记当前视频流是否已经成功完成了首帧画面的提取操作
     var hasFirstFrame = false
 
+    val maxWidth = 1280
+    val maxHeight = 720
+
     // 底层硬解输出与 OES 纹理约定的内部渲染宽度
-    var videoWidth = 640
+    var videoWidth = maxWidth
 
     // 底层硬解输出与 OES 纹理约定的内部渲染高度
-    var videoHeight = 360
+    var videoHeight = maxHeight
 
     // 记录当前流在遇到网络断开或解码异常时已尝试重新连接的次数
     @Volatile
@@ -82,6 +89,26 @@ class DecoderStream(
 
     // 生命周期羁绊池：订阅了当前视频流画面的所有外部显示窗口集合，使用并发集合保障线程安全
     val displayWindows = CopyOnWriteArrayList<DisplayWindow>()
+
+    /**
+     * 提取的公用函数：计算并限制视频的安全渲染分辨率。
+     * 采用等比缩放算法，不仅限制了最大分辨率，还防止了因单边超限导致的画面拉伸变形。
+     */
+    private fun getSafeResolution(originalWidth: Int, originalHeight: Int): Pair<Int, Int> {
+        if (originalWidth <= 0 || originalHeight <= 0) return Pair(maxWidth, maxHeight)
+
+        var safeW = originalWidth
+        var safeH = originalHeight
+
+        // 如果宽或高超出了安全限制，计算缩放比例，进行等比缩放
+        if (safeW > maxWidth || safeH > maxHeight) {
+            val scale = minOf(maxWidth.toFloat() / safeW, maxHeight.toFloat() / safeH)
+            safeW = (safeW * scale).toInt()
+            safeH = (safeH * scale).toInt()
+        }
+
+        return Pair(safeW, safeH)
+    }
 
     /**
      * 启动视频解码流。申请内部 FBO 和 OES 纹理显存，构建硬件解码通道并驱动 VLC 引擎开始拉流。
@@ -109,7 +136,6 @@ class DecoderStream(
             mediaPlayer?.scale = 0f
             mediaPlayer?.vlcVout?.setWindowSize(videoWidth, videoHeight)
             mediaPlayer?.aspectRatio = "$videoWidth:$videoHeight"
-
             mediaPlayer?.vlcVout?.setVideoSurface(decodeSurface, null)
             mediaPlayer?.setEventListener { event ->
                 when (event.type) {
@@ -170,10 +196,45 @@ class DecoderStream(
      */
     private fun createMedia(vlc: LibVLC): Media {
         val media = Media(vlc, url.toUri())
-        mediaOptions?.forEach { option ->
+        mediaOptions.forEach { option ->
             media.addOption(option)
         }
         return media
+    }
+
+    /**
+     * 在接收到首帧时调用此方法。
+     * 从 VLC 底层精准获取当前视频轨道的物理分辨率，并在需要时即刻重建 OpenGL 的 FBO 画布。
+     */
+    fun checkAndUpdateResolution() {
+        // 获取 VLC 成功解析的当前视频轨道信息
+        val track = mediaPlayer?.currentVideoTrack ?: return
+
+        // 【调用提取的公用函数】，直接解构出安全的高宽
+        val (realW, realH) = getSafeResolution(track.width, track.height)
+
+        // 如果获取到了有效的尺寸，并且与目前的 FBO 尺寸不符，则执行换膜操作
+        if (realW > 0 && realH > 0 && (realW != videoWidth || realH != videoHeight)) {
+            videoWidth = realW
+            videoHeight = realH
+            // 同步修正 VLC 内部的输出比例预期
+            mediaPlayer?.vlcVout?.setWindowSize(videoWidth, videoHeight)
+            mediaPlayer?.aspectRatio = "$videoWidth:$videoHeight"
+
+            // 删除旧的降维 FBO 与纹理
+            eglCore.deleteFBO(fboId, tex2DId)
+
+            // 依照真实视频尺寸申请新 FBO 与纹理
+            val newFboData = eglCore.createFBO(videoWidth, videoHeight)
+            fboId = newFboData[0]
+            tex2DId = newFboData[1]
+
+            // 告诉 OES 接收器未来的默认缓冲尺寸
+            surfaceTexture?.setDefaultBufferSize(videoWidth, videoHeight)
+
+            // 将绑定该流的所有窗口标记为脏，强制采用新 FBO 和矩阵重绘一帧以纠正形变
+            displayWindows.forEach { it.isDirty = true }
+        }
     }
 
     /**
