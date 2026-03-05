@@ -7,7 +7,6 @@ import android.view.Surface
 import android.view.View
 import androidx.core.graphics.scale
 import com.caijunlin.vlcdecoder.core.VlcStreamManager
-import kotlin.math.hypot
 
 /**
  * @author caijunlin
@@ -25,10 +24,8 @@ class VideoGestureHelper(
         val touchOffsetY: Float,
         val width: Int,
         val height: Int,
-        var stableFingerX: Float,
-        var stableFingerY: Float,
-        var lastEventX: Float,
-        var lastEventY: Float
+        var lastVisualX: Float,
+        var lastVisualY: Float
     )
 
     fun onTouchEvent(event: MotionEvent, width: Int, height: Int): Boolean {
@@ -58,9 +55,12 @@ class VideoGestureHelper(
         bitmap.recycle()
         val shadowBuilder = BitmapDragShadowBuilder(scaledBitmap, touchX.toInt(), touchY.toInt())
         val sessionState = DragSessionState(
-            touchX, touchY, width, height,
-            stableFingerX = touchX, stableFingerY = touchY,
-            lastEventX = touchX, lastEventY = touchY
+            touchOffsetX = touchX,
+            touchOffsetY = touchY,
+            width = width,
+            height = height,
+            lastVisualX = touchX,
+            lastVisualY = touchY
         )
         dragHostView.post {
             setupDragListener()
@@ -82,23 +82,16 @@ class VideoGestureHelper(
                 }
 
                 DragEvent.ACTION_DRAG_LOCATION -> {
-                    val dx = event.x - state.lastEventX
-                    val dy = event.y - state.lastEventY
-                    val dist = hypot(dx.toDouble(), dy.toDouble())
-
-                    if (dist < 200) {
-                        state.stableFingerX = event.x
-                        state.stableFingerY = event.y
-                    }
-
-                    state.lastEventX = event.x
-                    state.lastEventY = event.y
+                    state.lastVisualX = event.x
+                    state.lastVisualY = event.y
                     true
                 }
 
                 DragEvent.ACTION_DROP -> {
-                    val imgTopLeftX = state.stableFingerX - state.touchOffsetX
-                    val imgTopLeftY = state.stableFingerY - state.touchOffsetY
+                    val finalX = state.lastVisualX
+                    val finalY = state.lastVisualY
+                    val imgTopLeftX = finalX - state.touchOffsetX
+                    val imgTopLeftY = finalY - state.touchOffsetY
                     val centerX = imgTopLeftX + (state.width / 2f)
                     val centerY = imgTopLeftY + (state.height / 2f)
                     onDropAction(centerX, centerY)
