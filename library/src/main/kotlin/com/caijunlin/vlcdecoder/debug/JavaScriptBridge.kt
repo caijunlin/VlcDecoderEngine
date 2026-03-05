@@ -1,7 +1,6 @@
 package com.caijunlin.vlcdecoder.debug
 
 import android.webkit.JavascriptInterface
-import androidx.annotation.Keep
 import com.caijunlin.vlcdecoder.gles.VlcRenderPool
 
 /**
@@ -14,7 +13,6 @@ class JavaScriptBridge {
     /**
      * 诊断探针：命令底层渲染池在日志控制台中打印出当前的内存挂载树与解码器工作状态。
      */
-    @Keep
     @JavascriptInterface
     fun printVLCDiagnostics() {
         // 直接调用我们之前写好的底层全息状态透视方法

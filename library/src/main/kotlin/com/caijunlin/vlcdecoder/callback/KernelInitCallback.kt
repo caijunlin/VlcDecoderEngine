@@ -1,7 +1,5 @@
 package com.caijunlin.vlcdecoder.callback
 
-import androidx.annotation.Keep
-
 /**
  * @author : caijunlin
  * @date   : 2026/2/25
@@ -9,10 +7,8 @@ import androidx.annotation.Keep
  */
 abstract class KernelInitCallback {
 
-    @Keep
     abstract fun onSuccess(isX5Core: Boolean)
 
-    @Keep
     abstract fun onFailed(code: Int, msg: String?)
 
 }
